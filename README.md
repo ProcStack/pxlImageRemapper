@@ -1,15 +1,26 @@
-## pxlImageRemapper :: v0.0.1
+# pxlImageRemapper :: v0.0.1
 ### Small batch VAE & Diffusion model training/generation
+&nbsp;
+### What's it do?
+Train a model from the ground up on your own images and labels.
+<br/>&nbsp;
 
+### It doesn't do what I just said yet
+If you run the correct sections of code in the right order, it does, but I just made this thing's gui
+<br/>&nbsp;
+
+### Purpose?
 Written to visualize how VAE encoders and decoders learn from training material, along with how Diffusion models generate.
 <br/>&nbsp; While training on your own images and labels.
 
 *Note*:
 <br/>Generation doesn't work yet through the gui.  Should be working shortly.
 <br/>&nbsp; This project just launched.
+<br/>&nbsp;
 
 ---
 
+### Header ripped from `main.py`
 Diffusion models exist... Why is this a thing?     
 &nbsp; More of a learning experience than anything else.
 
