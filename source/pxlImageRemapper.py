@@ -18,7 +18,8 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QLabel, QComboBox, QListWidget, QHBoxLayout, QSizePolicy, QFileDialog
 
 from source.VAE import VAE
-from source.uiWidgets import SliderLabelWidget, PIRButton, PIRArrayEdit
+
+from source.uiWidgets import HoverButtonWidget, SliderLabelWidget, ArrayEditWidget
 
 
 class pxlImageRemapper(QMainWindow):
@@ -95,6 +96,8 @@ class pxlImageRemapper(QMainWindow):
     menubar = self.menuBar()
     fileMenu = menubar.addMenu('File')
     fileMenu.addAction('Load Session', self.loadSession)
+    fileMenu.addAction('Save Session', self.saveSession)
+    fileMenu.addAction('Save All', self.saveAll)
     fileMenu.addSeparator()
     fileMenu.addAction('Exit', self.close)
     fileMenu.addSeparator()
@@ -173,7 +176,7 @@ class pxlImageRemapper(QMainWindow):
     layout.setSpacing(4)
     layout.setContentsMargins(3, 3, 3, 3)
 
-    self.loadGeneratorData = PIRButton("Load Generator Data")
+    self.loadGeneratorData = HoverButtonWidget("Load Generator Data")
     self.loadGeneratorData.clicked.connect(self.loadVAEModelData)
     layout.addWidget(self.loadGeneratorData)
 
@@ -213,7 +216,7 @@ class pxlImageRemapper(QMainWindow):
     curHeaderLabel.setFixedHeight(40)
     edSizesLayoutBlock.addWidget(curHeaderLabel)
     # -- -- --
-    self.encoder_decoder_sizes = PIRArrayEdit( curHeader, self.encoderDecoderSizes )
+    self.encoder_decoder_sizes = ArrayEditWidget( curHeader, self.encoderDecoderSizes )
     self.encoder_decoder_sizes.subscribe( self.updateTrainingOptions )
     edSizesLayoutBlock.addWidget(self.encoder_decoder_sizes)
     layerHLayout.addLayout(edSizesLayoutBlock)
@@ -227,7 +230,7 @@ class pxlImageRemapper(QMainWindow):
     curHeaderLabel.setFixedHeight(40)
     reluLayoutBlock.addWidget(curHeaderLabel)
     # -- -- --
-    self.relu_layers = PIRArrayEdit( curHeader, self.reluLayers )
+    self.relu_layers = ArrayEditWidget( curHeader, self.reluLayers )
     self.relu_layers.subscribe( self.updateTrainingOptions )
     reluLayoutBlock.addWidget(self.relu_layers)
     layerHLayout.addLayout(reluLayoutBlock)
@@ -241,7 +244,7 @@ class pxlImageRemapper(QMainWindow):
     curHeaderLabel.setFixedHeight(40)
     diffusionLayoutBlock.addWidget(curHeaderLabel)
     # -- -- --
-    self.diffusion_layers = PIRArrayEdit( curHeader, self.diffusionLayers )
+    self.diffusion_layers = ArrayEditWidget( curHeader, self.diffusionLayers )
     self.diffusion_layers.subscribe( self.updateTrainingOptions )
     diffusionLayoutBlock.addWidget(self.diffusion_layers)
     layerHLayout.addLayout(diffusionLayoutBlock)
@@ -266,7 +269,7 @@ class pxlImageRemapper(QMainWindow):
     
     # -- -- --
 
-    self.train_button = PIRButton("Train ...")
+    self.train_button = HoverButtonWidget("Train ...")
     self.train_button.clicked.connect(self.trainVAE)
     insetButtonLayout.addWidget(self.train_button)
     
@@ -276,12 +279,31 @@ class pxlImageRemapper(QMainWindow):
     spacer.setFixedHeight(10)
     spacer.setStyleSheet("border: 0px;")
     insetButtonLayout.addWidget(spacer)
+    
+    # -- -- --
+
+    self.saveSession_button = HoverButtonWidget("Save VAE & Diffusion Session")
+    self.saveSession_button.clicked.connect(self.saveSession)
+    insetButtonLayout.addWidget(self.saveSession_button)
 
     # -- -- --
 
-    self.saveVAE_button = PIRButton("Save VAE Encodings & Decodings")
-    self.saveVAE_button.clicked.connect(self.saveVAE)
+    spacer = QLabel("")
+    spacer.setFixedHeight(10)
+    spacer.setStyleSheet("border: 0px;")
+    insetButtonLayout.addWidget(spacer)
+
+    # -- -- --
+
+    self.saveVAE_button = HoverButtonWidget("Save VAE Encodings & Decodings")
+    self.saveVAE_button.clicked.connect(self.saveVAEClicked)
     insetButtonLayout.addWidget(self.saveVAE_button)
+
+    # -- -- --
+
+    self.saveDiffusion_button = HoverButtonWidget("Save Diffusion Model")
+    self.saveDiffusion_button.clicked.connect(self.saveDiffusionClicked)
+    insetButtonLayout.addWidget(self.saveDiffusion_button)
 
     # -- -- --
 
@@ -329,7 +351,7 @@ class pxlImageRemapper(QMainWindow):
 
     # -- -- --
 
-    self.generateButton = PIRButton("Generate")
+    self.generateButton = HoverButtonWidget("Generate")
     self.generateButton.clicked.connect(self.generateImages)
     layout.addWidget(self.generateButton)
 
@@ -477,13 +499,33 @@ class pxlImageRemapper(QMainWindow):
     else:
       self.diffusionModel.save( self.outputDiffusion )
 
+  def saveAll(self):
+    self.saveVAE()
+    self.saveVAE( True )
+    self.saveDiffusion()
+    self.saveDiffusion( True )
+    self.setStatusText("-- All Models Saved --")
+
+  def saveVAEClicked(self):
+    self.saveVAE()
+    self.saveVAE( True )
+    self.setStatusText("-- VAE Encodings & Decodings Saved --")
+
+  def saveDiffusionClicked(self):
+    self.saveDiffusion()
+    self.saveDiffusion( True )
+    self.setStatusText("-- Diffusion Model Saved --")
+
   def saveSession(self):
     if self.vae is None:
       self.loadVAE()
     self.vae.saveSession()
     if not os.path.exists(self.outputSessionFolder):
       os.makedirs(self.outputSessionFolder)
-    self.s
+    if self.diffusionModel is None:
+      self.loadModel()
+    self.diffusionModel.save( os.path.join(self.outputSessionFolder, "diffusion_model"+str(self.sessionId)+"." + self.outputFileType) )
+    self.setStatusText("-- VAE & Diffusion Session Saved --")
 
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -527,7 +569,7 @@ class pxlImageRemapper(QMainWindow):
 
     self.vae.load()
 
-    print("-- VAE Encodings & Decodings Loaded --")
+    self.setStatusText("-- VAE Encodings & Decodings Loaded --")
 
   def loadModel(self):
     if os.path.exists(self.outputDiffusion):
@@ -540,7 +582,7 @@ class pxlImageRemapper(QMainWindow):
     #   This is to allow easier instant use of the existing model
 
     self.diffusionModel.summary()
-    print("-- Diffusion Model Loaded --")
+    self.setStatusText("-- Diffusion Model Loaded --")
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -659,7 +701,7 @@ class pxlImageRemapper(QMainWindow):
     # Filter images and labels for the requested character
     filtered_images = {}
     for size in self.images.keys():
-      filtered_images[size] = [img for img, label in zip(self.images[size], self.labels) if label == character]
+      filtered_images[size] = [img for img, label in zip(self.images[size], self.labelLinks) if label == character]
       if len(filtered_images[size]) == 0:
         print(f"No images found for character: {character}")
         return
@@ -740,13 +782,13 @@ class pxlImageRemapper(QMainWindow):
     step=0
 
     step+=1
-    print(f"{step} - Building Encoder & Decoder...")
+    self.setStatusText(f"{step} - Building Encoder & Decoder...")
 
     if self.fileExists( self.outputEncoder ) and self.fileExists( self.outputDecoder ):
-      print("Loading existing models...")
+      self.setStatusText("Loading existing models...")
       self.vae.load()
     else:  # Instantiate the shared encoder, decoder, and VAE
-      print("Building new models...")
+      self.setStatusText("Building new models...")
       self.vae.prepShapes()
 
     self.vae.train( self.images, self.labelLinks, self.epochs, self.batchSize )
@@ -754,13 +796,13 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
     if self.checkBreak():
-      print("Exiting Training...")
+      self.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
     step+=1
-    print(f"{step} - Building Diffusion model...")
+    self.setStatusText(f"{step} - Building Diffusion model...")
 
     # Define the diffusion model
 
@@ -770,7 +812,7 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      print("Exiting Training...")
+      self.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -794,13 +836,13 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      print("Exiting Training...")
+      self.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
     step+=1
-    print(f"{step} - Saving VAE Encoder/Decoder & Model...")
+    self.setStatusText(f"{step} - Saving VAE Encoder/Decoder & Model...")
 
     # Save the VAE encoder and decoder
     self.vae.save()
@@ -809,11 +851,12 @@ class pxlImageRemapper(QMainWindow):
     # Save the diffusion model
     print(self.outputDiffusion)
     diffusion_model.save( self.outputDiffusion )
+    diffusion_model.save( self.outputSessionFolder + "/diffusion_model." + self.outputFileType )
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      print("Exiting Training...")
+      self.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -829,7 +872,7 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      print("Exiting Training...")
+      self.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --

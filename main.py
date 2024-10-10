@@ -129,6 +129,7 @@ if os.path.exists(options["settingsPath"]):
 # -- Parse Training Data  -- -- -- -- -- -- -- -- --
 # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
+
 # Initialize lists to hold images and labels
 images = {}
 labels = []
@@ -170,6 +171,9 @@ if options["showTrainingOnly"]:
     plt.imshow(images[firstKey][x][0], cmap="gray")
     plt.show()
   exit()
+
+step+=1
+print(f"{step} - Booting Window...")
 
 # Convert lists to numpy arrays
 """for size in encoder_decoder_sizes:
