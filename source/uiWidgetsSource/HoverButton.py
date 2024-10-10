@@ -10,13 +10,13 @@ from PyQt6.QtWidgets import QPushButton
 
 
 class HoverButtonWidget(QPushButton):
-  def __init__(self, label):
+  def __init__(self, label, fontSize=20):
     super().__init__()
     self.setText(label)
     self.setFixedHeight(45)
     #self.setFixedWidth(200)
 
-    self.styleBase = "font-size: 20px; font-weight: bold; border-radius: 5px;"
+    self.styleBase = f"font-size: {fontSize}px; font-weight: bold; border-radius: 5px;"
     self.styleNoHover = "background-color: #353535; color: white; border: 1px solid #808080; padding:1px 1px 1px 1px;" + self.styleBase
     self.styleHover = "background-color: #404550; color: #eff6ff; border: 2px solid #5599cc; " + self.styleBase
 
@@ -45,4 +45,4 @@ if __name__ == "__main__":
     widget = HoverButtonWidget("Tester Face McGee")
     widget.clicked.connect(onButtonClicked)
     widget.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -160,13 +160,14 @@ class SliderLabelWidget(QWidget):
 
 # Unit test
 if __name__ == "__main__":
+  import sys
   from PyQt6.QtWidgets import QApplication
 
   def printValue(label, value):
     print(f"{label} : {value}")
 
-  app = QApplication([])
+  app = QApplication(sys.argv)
   window = SliderLabelWidget("Jamtasticness", (0, 100), 50, 150)
   window.subscribe(printValue)
   window.show()
-  app.exec()
+  sys.exit(app.exec())

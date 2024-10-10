@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QLabel, QComboBox
 
 from source.VAE import VAE
 
-from source.uiWidgets import HoverButtonWidget, SliderLabelWidget, ArrayEditWidget
+from source.uiWidgets import HoverButtonWidget, SliderLabelWidget, ArrayEditWidget, StatusDisplay
 
 
 class pxlImageRemapper(QMainWindow):
