@@ -267,7 +267,9 @@ class VAE(tf.keras.Model):
     kl_loss = -0.5 * tf.reduce_mean(z_log_var - tf.square(z_mean) - tf.exp(z_log_var) + 1)
 
     # Categorical cross-entropy loss for labels
-
+    # Still can't get it right,
+    #   Input sizes chance caue of session sizes, yet localizing the labels is a bit tricky
+    #     I'll see where I get in the next week or two
     #label_loss = tf.reduce_mean(tf.keras.losses.categorical_crossentropy(labels, reconstructed_labels))
 
     return reconstruction_loss + kl_loss# + label_loss

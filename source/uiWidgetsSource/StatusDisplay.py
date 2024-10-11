@@ -14,7 +14,10 @@
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton
 
-from HoverButton import HoverButtonWidget
+if __name__ == "__main__":
+  from HoverButton import HoverButtonWidget
+else:
+  from source.uiWidgetsSource.HoverButton import HoverButtonWidget
 
 class StatusDisplay(QWidget):
   def __init__(self, app=None,autoHideStatusBar=False):
