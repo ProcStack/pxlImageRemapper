@@ -25,6 +25,7 @@ from source.uiWidgetsSource.SliderLabel import SliderLabelWidget
 from source.uiWidgetsSource.ArrayEdit import ArrayEditWidget
 from source.uiWidgetsSource.StatusDisplay import StatusDisplay
 from source.uiWidgetsSource.ImageDataDisplay import ImageDataDisplayWidget
+from source.uiWidgetsSource.GridArrayDisplay import GridArrayDisplayWidget
 
 
 
@@ -95,6 +96,7 @@ class pxlImageRemapper(QMainWindow):
     self.markToClean = []
     self.statusText = None
     self.statusTimer = QTimer()
+    self.displayGridRes = (3,5)
 
     # Used for setting the Status Text's Cancel button callback mode
     #   When the status bar is visible, the cancel button will trigger all callback[mode] functions
@@ -191,23 +193,75 @@ class pxlImageRemapper(QMainWindow):
 
   def initUI(self):
     self.setWindowTitle( self.windowTitle() )
-    self.setGeometry(100, 100, 800, 600)
+    self.setGeometry(100, 100, 1000, 700)
+    self.setStyleSheet("background-color: #252525;")
 
     central_widget = QWidget()
     self.setCentralWidget(central_widget)
-    layout = QVBoxLayout()
-    layout.setSpacing(4)
-    layout.setContentsMargins(3, 3, 3, 3)
 
-    self.loadGeneratorData = HoverButtonWidget("Load Generator Data")
+
+
+    # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+    # Main Layout & Staging Layouts
+
+    layout_main = QVBoxLayout()
+    layout_main.setSpacing(2)
+    layout_main.setContentsMargins(3, 3, 3, 3)
+    
+    layout_sideGenBar = QHBoxLayout()
+
+    widget_sideBar = QWidget()
+    widget_sideBar.setFixedWidth(600)
+    layout_sideBar = QVBoxLayout()
+    layout_sideBar.setSpacing(2)
+    layout_sideBar.setContentsMargins(3, 3, 3, 3)
+    widget_sideBar.setLayout(layout_sideBar)
+    layout_sideGenBar.addWidget(widget_sideBar)
+
+    layout_generationStage = QVBoxLayout()
+    layout_generationStage.setSpacing(0)
+    layout_generationStage.setContentsMargins(2, 2, 2, 2)
+    layout_sideGenBar.addLayout(layout_generationStage)
+
+    layout_main.addLayout(layout_sideGenBar)
+
+
+    # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+    # Side Bar
+
+    self.loadGeneratorData = HoverButtonWidget("Load Generator Data", color="INFO")
     self.loadGeneratorData.clicked.connect(self.loadVAEModelData)
-    layout.addWidget(self.loadGeneratorData)
+    layout_sideBar.addWidget(self.loadGeneratorData)
 
     # -- -- --
     
-    sliderLayoutBlock = QHBoxLayout()
-    sliderLayoutBlock.setSpacing(6)
-    sliderLayoutBlock.setContentsMargins(2, 2, 2, 2)
+    trainingOptionsBlock = QWidget()
+    trainingOptionsBlock.setStyleSheet("background-color: #353535; border: 1px solid #555555; border-radius: 5px;")
+    trainingOptionsBlockLayout = QVBoxLayout()
+    trainingOptionsBlockLayout.setSpacing(0)
+    trainingOptionsBlockLayout.setContentsMargins(3, 3, 3, 3)
+    trainingOptionsBlock.setLayout(trainingOptionsBlockLayout)
+    trainingOptionsStyleCancel = QWidget()
+    trainingOptionsStyleCancel.setStyleSheet("background-color: #353535; border: 0px;")
+    trainingOptionsLayout = QVBoxLayout()
+    trainingOptionsLayout.setSpacing(0)
+    trainingOptionsLayout.setContentsMargins(0, 0, 0, 0)
+    trainingOptionsStyleCancel.setLayout(trainingOptionsLayout)
+    trainingOptionsBlockLayout.addWidget(trainingOptionsStyleCancel)
+
+    trainingHeader = QLabel(":: Training Options ::")
+    trainingHeader.setStyleSheet("font-size: 20px; font-weight: bold;")
+    trainingHeader.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    trainingOptionsLayout.addWidget(trainingHeader)
+
+    # -- -- --
+
+    sliderLayoutBlock = QVBoxLayout()
+    sliderLayoutBlock.setSpacing(3)
+    sliderLayoutBlock.setContentsMargins(3, 3, 3, 3)
+
 
     # Epoch Int Slider
     self.epoch_slider = SliderLabelWidget("Epochs", (1, 100), self.epochs)
@@ -224,7 +278,7 @@ class pxlImageRemapper(QMainWindow):
     self.latent_slider.subscribe(self.updateTrainingOptions)
     sliderLayoutBlock.addWidget(self.latent_slider)
 
-    layout.addLayout(sliderLayoutBlock)
+    trainingOptionsLayout.addLayout(sliderLayoutBlock)
 
     # -- -- --
 
@@ -232,7 +286,7 @@ class pxlImageRemapper(QMainWindow):
 
     # Encoder Decoder Sizes String Int Array
     edSizesLayoutBlock = QVBoxLayout()
-    curHeader = "Encoder Decoder Sizes"
+    curHeader = "VAE Sizes"
     # -- -- --
     curHeaderLabel = QLabel(curHeader)
     curHeaderLabel.setStyleSheet("font-size: 16px;")
@@ -272,13 +326,13 @@ class pxlImageRemapper(QMainWindow):
     diffusionLayoutBlock.addWidget(self.diffusion_layers)
     layerHLayout.addLayout(diffusionLayoutBlock)
 
-    layout.addLayout(layerHLayout)
+    trainingOptionsLayout.addLayout(layerHLayout)
 
     # -- -- --
 
     spacer = QLabel("")
     spacer.setFixedHeight(15)
-    layout.addWidget(spacer)
+    trainingOptionsLayout.addWidget(spacer)
 
     # == == ==
 
@@ -294,11 +348,11 @@ class pxlImageRemapper(QMainWindow):
 
     trainButtonLayout = QHBoxLayout()
 
-    self.train_button = HoverButtonWidget("Train VAE ...")
+    self.train_button = HoverButtonWidget("Train VAE ...", color="ACCEPT")
     self.train_button.clicked.connect(self.trainVAE)
     trainButtonLayout.addWidget(self.train_button)
 
-    self.trainDiffusion_button = HoverButtonWidget("Train Diffusion ...")
+    self.trainDiffusion_button = HoverButtonWidget("Train Diffusion ...", color="ACCEPT")
     self.trainDiffusion_button.clicked.connect(self.trainDiffusion)
     trainButtonLayout.addWidget(self.trainDiffusion_button)
 
@@ -313,7 +367,7 @@ class pxlImageRemapper(QMainWindow):
     
     # -- -- --
 
-    self.saveSession_button = HoverButtonWidget("Save VAE & Diffusion Session")
+    self.saveSession_button = HoverButtonWidget("Save Session Data", color="INFO")
     self.saveSession_button.clicked.connect(self.saveSession)
     insetButtonLayout.addWidget(self.saveSession_button)
 
@@ -328,84 +382,122 @@ class pxlImageRemapper(QMainWindow):
 
     saveButtonLayout = QHBoxLayout()
 
-    self.saveVAE_button = HoverButtonWidget("Save VAE Encodings & Decodings")
+    self.saveVAE_button = HoverButtonWidget("Save VAE", color="INFO")
     self.saveVAE_button.clicked.connect(self.saveVAEClicked)
     saveButtonLayout.addWidget(self.saveVAE_button)
 
-    self.saveDiffusion_button = HoverButtonWidget("Save Diffusion Model")
+    self.saveDiffusion_button = HoverButtonWidget("Save Diffusion Model", color="INFO")
     self.saveDiffusion_button.clicked.connect(self.saveDiffusionClicked)
     saveButtonLayout.addWidget(self.saveDiffusion_button)
     insetButtonLayout.addLayout(saveButtonLayout)
 
     # -- -- --
 
-    layout.addWidget(insetButtonBlock)
+    trainingOptionsLayout.addWidget(insetButtonBlock)
+    layout_sideBar.addWidget(trainingOptionsBlock)
 
     # == == ==
 
     spacer = QLabel("")
-    spacer.setFixedHeight(15)
-    layout.addWidget(spacer)
+    spacer.setFixedWidth(10)
+    spacer.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+    layout_sideBar.addWidget(spacer)
 
 
     # -- -- --
+    
+    generationOptionsBlock = QWidget()
+    generationOptionsBlock.setStyleSheet("background-color: #353535; border: 1px solid #555555; border-radius: 5px;")
+    generationOptionsBlockLayout = QVBoxLayout()
+    generationOptionsBlockLayout.setSpacing(0)
+    generationOptionsBlockLayout.setContentsMargins(3, 3, 3, 3)
+    generationOptionsBlock.setLayout(generationOptionsBlockLayout)
+    generationOptionsStyleCancel = QWidget()
+    generationOptionsStyleCancel.setStyleSheet("background-color: #353535; border: 0px;")
+    generationOptionsLayout = QVBoxLayout()
+    generationOptionsLayout.setSpacing(0)
+    generationOptionsLayout.setContentsMargins(0, 0, 0, 0)
+    generationOptionsStyleCancel.setLayout(generationOptionsLayout)
+    generationOptionsBlockLayout.addWidget(generationOptionsStyleCancel)
+    layout_sideBar.addWidget(generationOptionsBlock)
+
+    
+    # -- -- --
+
+    generationHeader = QLabel(":: Generation Options ::")
+    generationHeader.setStyleSheet("font-size: 20px; font-weight: bold;")
+    generationHeader.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    generationOptionsLayout.addWidget(generationHeader)
+
+    # -- -- --
+    
+    genLabel = QLabel("Generate Label : ")
+    genLabel.setStyleSheet("font-size: 16px;")
+    generationOptionsLayout.addWidget(genLabel)
 
     self.labelCombo = QComboBox()
     self.labelCombo.setStyleSheet("font-size: 20px; font-weight: bold; background-color: #353535; color: white; border: 1px solid #808080; border-radius: 5px;")
     if self.labelOptions is not None and len(self.labelOptions) > 0:
       self.labelCombo.addItems(self.labelOptions)
-    layout.addWidget(self.labelCombo)
+    generationOptionsLayout.addWidget(self.labelCombo)
 
     # -- -- --
     
     spacer = QLabel("")
     spacer.setFixedHeight(10)
-    layout.addWidget(spacer)
+    generationOptionsLayout.addWidget(spacer)
 
     # -- -- --
 
     # Generation batch size
     self.genEpochsSlider = SliderLabelWidget("Gen Epochs", (0, 10), self.generationEpochs, 150)
     self.genEpochsSlider.subscribe(self.updateGenerationOptions)
-    layout.addWidget(self.genEpochsSlider)
+    generationOptionsLayout.addWidget(self.genEpochsSlider)
 
     # Generation batch size
     self.getBatchSizeSlider = SliderLabelWidget("Gen Batch Size", (0, 10), self.generationBatchSize, 150)
     self.getBatchSizeSlider.subscribe(self.updateGenerationOptions)
-    layout.addWidget(self.getBatchSizeSlider)
+    generationOptionsLayout.addWidget(self.getBatchSizeSlider)
 
 
     # -- -- --
 
     spacer = QLabel("")
     spacer.setFixedHeight(4)
-    layout.addWidget(spacer)
+    generationOptionsLayout.addWidget(spacer)
 
     # -- -- --
 
-    self.generateButton = HoverButtonWidget("Generate")
+    self.generateButton = HoverButtonWidget("Generate Images", color="ACCEPT")
     self.generateButton.clicked.connect(self.generateImages)
-    layout.addWidget(self.generateButton)
+    generationOptionsLayout.addWidget(self.generateButton)
 
-    # -- -- --
-
-    spacer = QLabel("")
-    spacer.setFixedHeight(4)
-    layout.addWidget(spacer)
     
     # -- -- --
-    self.imageListWidget = QListWidget()
+
+    stageParentBlock = QWidget()
+    stageParentBlock.setStyleSheet("background-color: #454545; border: 1px solid #555555; border-radius: 5px;")
+    stageParentBlockLayout = QVBoxLayout()
+    stageParentBlockLayout.setSpacing(0)
+    stageParentBlockLayout.setContentsMargins(3, 3, 3, 3)
+    stageParentBlock.setLayout(stageParentBlockLayout)
+
+    self.imageListWidget = GridArrayDisplayWidget( gridRes=self.displayGridRes )
     self.imageListWidget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-    layout.addWidget(self.imageListWidget)
+    self.imageListWidget.setStyleSheet("background-color: #454545; border: 0px;")
+    stageParentBlockLayout.addWidget(self.imageListWidget)
+    layout_generationStage.addWidget(stageParentBlock)
 
     # -- -- --
 
     self.statusText = StatusDisplay( self.app )
-    layout.addWidget(self.statusText)
+    layout_main.addWidget(self.statusText)
     self.statusText.setStatusText("Init...")
 
 
-    central_widget.setLayout(layout)
+    central_widget.setLayout(layout_main)
+    central_widget.setStyleSheet("background-color: #353535;")
+    central_widget.setContentsMargins(0, 0, 0, 0)
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -437,26 +529,25 @@ class pxlImageRemapper(QMainWindow):
 
     buttonOptions = {
       "Info": {
-          "color":"info",
+          "color":"INFO",
           "callback":self.displayInfo
         }
     }
 
-    self.imageListWidget.clear()
     for x in range(len(imgPaths)):
-      print("Adding Image : ", imgPaths[x])
       newImgDisp = None
       if type(imgPaths[x]) == str and os.path.exists(imgPaths[x]):
-        newImgDisp = ImageDataDisplayWidget( imgPaths[x], selectedLabel )
+        curLabel = selectedLabel
+        pathNumber = imgPaths[x].split("_")[-1].split(".")[0]
+        curLabel = f"{curLabel} :: {pathNumber}"
+        newImgDisp = ImageDataDisplayWidget( imgPaths[x], curLabel, buttonOptions )
       else:
-        newImgDisp = ImageDataDisplayWidget( imgPaths[x], selectedLabel )
+        curLabel = selectedLabel + " :: " + str(len(self.imageListWidget.gridItems))
+        newImgDisp = ImageDataDisplayWidget( imgPaths[x], curLabel, buttonOptions )
 
       newImgDisp.subscribeToDelete( self.displayDelete )
 
-      newItem = QListWidgetItem()
-      newItem.setSizeHint(newImgDisp.sizeHint())
-      self.imageListWidget.addItem(newItem)
-      self.imageListWidget.setItemWidget(newItem, newImgDisp)
+      self.imageListWidget.addItems(newImgDisp)
   
   def displayInfo(self, curDisplay ):
     curImgPath = curDisplay.imagePath
@@ -464,12 +555,7 @@ class pxlImageRemapper(QMainWindow):
   
   def displayDelete(self, curLabel ):
     self.statusText.setStatusText("Delisting : ", curLabel.imagePath)
-    for i in range(self.imageListWidget.count()):
-      item = self.imageListWidget.item(i)
-      widget = self.imageListWidget.itemWidget(item)
-      if widget == curLabel:
-        self.imageListWidget.takeItem(i)
-        break
+    self.imageListWidget.removeItem(curLabel)
 
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -669,30 +755,6 @@ class pxlImageRemapper(QMainWindow):
   
     self.UpdateDisplays(qimageData, selected_label)
 
-    """
-    # Display the generated images in the list
-    self.imageListWidget.clear()
-    curImageCount = self.findStartingCount(self.outputSessionFolder, ext=".png")
-
-    for img in new_images:
-      img = (img * 255).astype(np.uint8)
-      img = Image.fromarray(img.squeeze(), "L")
-      padCount = str(curImageCount).zfill(3)
-      img_path = os.path.join(self.outputSessionFolder, f"{selected_label}_{padCount}.png")
-      img.save(img_path)
-
-      img = img.convert("RGBA")  # Ensure image is in RGBA format
-      data = img.tobytes("raw", "RGBA")
-      qimage = QImage(data, img.width, img.height, QImage.Format.Format_RGBA8888)
-      imgPixmap = QPixmap.fromImage(qimage)
-      imgLabel = QLabel( f"{selected_label} : {curImageCount}" )
-      imgLabel.setPixmap(imgPixmap)
-      imgLabel.setFixedHeight(128)
-      imgLabel.setFixedWidth(128)
-      self.imageListWidget.addItem(imgLabel)
-      
-      curImageCount += 1
-    """
 
   def fileExists(self, filePath):
     return os.path.exists(filePath)
@@ -836,7 +898,6 @@ class pxlImageRemapper(QMainWindow):
 
     # Generate new images using the filtered images
     genCount = self.generationBatchSize
-    #generatedImages = self.GenerateRemapper( diffusion_model, filteredImages, self.inputTrainSize, genCount, output_folder, runDiffusionFit=False )
     generatedImages = self.GenerateRemapper( diffusion_model, filteredImages[imgSize], imgSize, genCount, output_folder, runDiffusionFit=False )
 
     if self.checkBreak():

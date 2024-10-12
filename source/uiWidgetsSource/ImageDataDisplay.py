@@ -5,6 +5,15 @@
 #
 #  -- -- -- -- -- -- --
 #
+#   Standalone Unit Test -
+#     Window with an Add Image button to add an ImageDataDisplayWidget, with 1 to start
+#     ImageDataDisplayWidget's support custom buttons with callbacks
+#       Such as an "Info" button in this test
+#     Clicking the "Del" button will remove the ImageDataDisplayWidget
+#       Running a callback aswell
+#
+#   Yeah... I like callbacks, what can I say?
+#
 
 import os
 from PyQt6.QtCore import Qt

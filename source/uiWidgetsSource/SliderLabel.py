@@ -6,6 +6,13 @@
 #
 #  -- -- -- -- -- -- --
 #
+#    Standalone Unit Test -
+#      Display a window with a SliderLabelWidget
+#        A label, editable text field, and slider
+#
+#
+
+
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor

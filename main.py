@@ -60,7 +60,7 @@ options["epochs"] = 10
 options["batch_size"] = 32
 
 options["generation_epochs"] = 1
-options["generation_batch_size"] = 4
+options["generation_batch_size"] = 3
 
 
 # -- -- -- -- -- -- -- --

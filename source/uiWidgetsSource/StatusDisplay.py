@@ -5,11 +5,21 @@
 #
 #  -- -- -- -- -- -- --
 #
+#  Standalone Unit Test -
+#    Display a window with a StatusDisplay widget with two test "process" buttons
+#    When running a "process" (it does nothing, just simulates a process)
+#      A status bar will appear and fill up to 100% with a cancel button next to it
+#    "Progress Test" will clear the status bar when done with a red "X" button
+#    "No Clear Test" will keep the status bar after completion with a green "O" button
+#
+#
 #  When `autoHideStatusBar` is set to False,
 #    The Status Bar stays after 100% completion.
 #  Its expected for a call to the StatusDisplay to hide the status bar,
 #    Mostly for confirmation or long haul processes
 #  callback() -> StatusDisplay.hideStatusBar()
+#
+#
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton
@@ -93,7 +103,8 @@ class StatusDisplay(QWidget):
       if self.autoHideStatusBar:
         self.hideStatusBar()
       else:
-         self.cancelButton.setText("O")
+        self.cancelButton.setText("O")
+        self.cancelButton.setTheme("ACCEPT")
 
   def showStatusBar(self):
     self.isDone = False
@@ -108,6 +119,7 @@ class StatusDisplay(QWidget):
     self.cancelButton.setVisible(False)
     self.cancelButton.setFixedHeight(0)
     self.cancelButton.setText("X")
+    self.cancelButton.setTheme("WARNING")
 
   # -- -- --
 
@@ -118,6 +130,8 @@ class StatusDisplay(QWidget):
     self.setStatusText(text, 0)
 
   def setStatusText(self, text, clearDelay=5000):
+      if clearDelay is None:
+          clearDelay = 5000
       if self.statusText:
           self.statusText.setText(text)
           baseLine = "font-size:20px;"
