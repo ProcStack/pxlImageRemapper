@@ -18,11 +18,12 @@ from sklearn.preprocessing import LabelEncoder
 
 # Define the VAE
 class VAE(tf.keras.Model):
-  def __init__(self, parent, sessionId, labels, epochs, batch_size, outputFolder, outputEncoderPath, outputDecoderPath, outputSessionPath, outputType, latent_dim=2, encoderDecoderSizes=[], reluLayers=[], **kwargs):
+  def __init__(self, parent, sessionId, statusBar, labels, epochs, batch_size, outputFolder, outputEncoderPath, outputDecoderPath, outputSessionPath, outputType, latent_dim=2, encoderDecoderSizes=[], reluLayers=[], **kwargs):
     super(VAE, self).__init__(**kwargs)
 
     self.parent = parent
     self.sessionId = sessionId
+    self.statusBar = statusBar
 
     # VAE training loop settings
     self.optimizer = tf.keras.optimizers.Adam(1e-4)
@@ -43,6 +44,11 @@ class VAE(tf.keras.Model):
     self.outputDecoderPath = outputDecoderPath
     self.outputSessionFolder = outputSessionPath
     self.outputType = outputType
+
+    self.trainingMode = "Training VAE"
+    self.hasCancelTraining = False
+    if self.statusBar:
+      self.statusBar.subscribeToCancel(self.cancelTraining, self.trainingMode)
 
     self.labelEncoderPath = os.path.join(self.outputFolder, "label_encoder.pkl")
     self.labelsOneHotPath = os.path.join(self.outputFolder, "labels_one_hot.pkl")  # Path to save one-hot encoded labels
@@ -157,12 +163,13 @@ class VAE(tf.keras.Model):
       size = encoderDecoderSizes[x]
       if wasNone and size not in self.encoderDecoderSizes:
         self.encoderDecoderSizes.append(size)
-      self.parent.setNoTimerStatusText("Prepping Encoder & Decoders : "+ str(size))
+      self.statusBar.setNoTimerStatusText("Prepping Encoder & Decoders : "+ str(size))
       
       oneHotSize = len(self.labelOneHot[0])
+      print("One Hot Size : ", oneHotSize)
       self.encoders[size] = self.build_encoder(self.latent_dim, (size, size, 1))
       self.decoders[size] = self.build_decoder(self.latent_dim, oneHotSize)
-      self.parent.setNoTimerStatusText("Current Size : "+ str(size))
+      self.statusBar.setNoTimerStatusText("Current Size : "+ str(size))
 
 
     # Encode labels as integers
@@ -306,11 +313,22 @@ class VAE(tf.keras.Model):
   # Train the VAE on different scales
   # TODO : Add support for multiple image sets
   def train(self, imageSets=[], labels=[], epochs=None, batch_size=None):
-    self.parent.setStatusText("Training VAE on different scales...")
+    self.statusBar.setStatusText("Training VAE on different scales...")
     if len(imageSets) == 0:
-      self.parent.setStatusText("Error: No image sets provided")
+      self.statusBar.setStatusText("Error: No image sets provided")
       return
+    
+    runner = 0
     imageSetKeys = list(imageSets.keys())
+    totalRunCount = 0
+    for x in imageSetKeys:
+      totalRunCount += len(imageSets[x])
+    totalRunCount = (totalRunCount // batch_size) * self.epochs
+
+    print("Total Run Count : ", totalRunCount)
+
+    if self.statusBar:
+      self.statusBar.setCallbackMode( self.trainingMode )
 
     isExit = False
     epochText = ""
@@ -323,12 +341,13 @@ class VAE(tf.keras.Model):
       
       encoder, decoder = self.getEncoder(images[0])
       if encoder is None:
-        self.parent.setStatusText("Error: No encoder found")
+        self.statusBar.setStatusText("Error: No encoder found")
         return
 
       for epoch in range(epochs):
-        epochText = imageKeyText+"'Epoch " + str(epoch + 1) + " / " + str(epochs)
+        epochText = imageKeyText+" Epoch " + str(epoch + 1) + " / " + str(epochs)
         for i in range(num_batches):
+          runner += 1
           if self.checkEscape() :
             isExit = True
             break
@@ -339,17 +358,27 @@ class VAE(tf.keras.Model):
           # self.labelOneHot
           loss = self.trainStep(batch_images, batch_labels_one_hot, encoder, decoder)
           curLoss = loss.numpy()
-          if self.parent:
-            dispText = epochText + "; Batch " + str(i) + " of " + str(num_batches) + "; Loss : " + str(curLoss)
+          if self.statusBar:
+            dispText = " " + str(runner) + " / " + str(totalRunCount) + "; " + epochText
+            dispText = dispText + "; Batch " + str(i) + " of " + str(num_batches) + "; Loss : " + str(curLoss)
             print(dispText)
-            self.parent.setNoTimerStatusText( dispText )
+            percent = int( (runner / totalRunCount) * 100 )
+            self.statusBar.setStatusBar(percent)
+            self.statusBar.setNoTimerStatusText( dispText )
         self.saveSession(x)
         if isExit:
-          self.parent.setStatusText("Exiting Training...")
+          self.statusBar.setStatusText("Exiting Training...")
           break
       if isExit:
         break
+    if self.statusBar:
+      self.statusBar.hideStatusBar()
+      self.statusBar.setStatusText("Training Complete!")
+    self.hasCancelTraining = False
 
+  def cancelTraining(self):
+    self.hasCancelTraining = True
   def checkEscape(self):
-    return self.parent.checkBreak()
+    hasBreak = self.parent.checkBreak() or self.hasCancelTraining
+    return hasBreak
       

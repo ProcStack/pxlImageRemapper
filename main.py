@@ -43,7 +43,7 @@ from PyQt6.QtWidgets import QApplication
 from source.pxlImageRemapper import pxlImageRemapper
 
 options={}
-options["outputFolderBase"] = 'pirSession'
+options["outputFolderBase"] = 'remapperSession'
 options["showTrainingOnly"]=False
 options["generateOnly"]=False
 options["writePredictedImages"]=False

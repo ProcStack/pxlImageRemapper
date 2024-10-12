@@ -15,7 +15,8 @@ from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.losses import MeanSquaredError
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QLabel, QComboBox, QListWidget, QHBoxLayout, QSizePolicy, QFileDialog
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QLabel, QComboBox, QListWidget, QHBoxLayout, QSizePolicy, QFileDialog, QListWidgetItem
 
 from source.VAE import VAE
 
@@ -23,8 +24,8 @@ from source.uiWidgetsSource.HoverButton import HoverButtonWidget
 from source.uiWidgetsSource.SliderLabel import SliderLabelWidget
 from source.uiWidgetsSource.ArrayEdit import ArrayEditWidget
 from source.uiWidgetsSource.StatusDisplay import StatusDisplay
+from source.uiWidgetsSource.ImageDataDisplay import ImageDataDisplayWidget
 
-#from source.uiWidgets import HoverButtonWidget, SliderLabelWidget, ArrayEditWidget, StatusDisplay
 
 
 class pxlImageRemapper(QMainWindow):
@@ -40,8 +41,9 @@ class pxlImageRemapper(QMainWindow):
 
     # Model Data
     self.trainingData = trainingData
-    self.images = self.trainingData['images']
-    self.labelLinks = self.trainingData['labelLinks']
+    self.images = self.trainingData['images'] if 'images' in self.trainingData else None
+    self.labels = self.trainingData['labels'] if 'labels' in self.trainingData else None
+    self.labelLinks = self.trainingData['labelLinks'] if 'labelLinks' in self.trainingData else None
     self.labelOptions = []
     self.labelOneHot = to_categorical(self.labelLinks)
 
@@ -49,6 +51,7 @@ class pxlImageRemapper(QMainWindow):
     self.encoder = encoder
     self.decoder = decoder
     self.diffusionModel = diffusionModel
+    self.needsFit = False
     
     # Training Options
     self.inputTrainSize = options["inputTrainSize"] if "inputTrainSize" in options else 256
@@ -63,6 +66,7 @@ class pxlImageRemapper(QMainWindow):
     self.generationEpochs = options["generation_epochs"] if "generation_epochs" in options else 10
     self.generationBatchSize = options["generation_batch_size"] if "generation_batch_size" in options else 4
 
+    self.autoSave = options["autoSave"] if "autoSave" in options else False
     self.generations = {}
 
     # Output Paths
@@ -92,8 +96,16 @@ class pxlImageRemapper(QMainWindow):
     self.statusText = None
     self.statusTimer = QTimer()
 
+    # Used for setting the Status Text's Cancel button callback mode
+    #   When the status bar is visible, the cancel button will trigger all callback[mode] functions
+    self.trainingMode = {
+        "VAE":"Training VAE",
+        "Diffusion":"Training Diffusion Model"
+      }
+
     self.initMenu()
     self.initUI()
+    self.initHelpers()
 
   # -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -112,6 +124,12 @@ class pxlImageRemapper(QMainWindow):
     settingsMenu.addAction('Load Settings', self.loadSettings)
     settingsMenu.addSeparator()
 
+
+  # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
+  def initHelpers(self):
+    if self.statusText is not None:
+      self.statusText.subscribeToCancel( self.triggerBreak, self.trainingMode["VAE"] )
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -274,9 +292,17 @@ class pxlImageRemapper(QMainWindow):
     
     # -- -- --
 
-    self.train_button = HoverButtonWidget("Train ...")
+    trainButtonLayout = QHBoxLayout()
+
+    self.train_button = HoverButtonWidget("Train VAE ...")
     self.train_button.clicked.connect(self.trainVAE)
-    insetButtonLayout.addWidget(self.train_button)
+    trainButtonLayout.addWidget(self.train_button)
+
+    self.trainDiffusion_button = HoverButtonWidget("Train Diffusion ...")
+    self.trainDiffusion_button.clicked.connect(self.trainDiffusion)
+    trainButtonLayout.addWidget(self.trainDiffusion_button)
+
+    insetButtonLayout.addLayout(trainButtonLayout)
     
     # -- -- --
 
@@ -300,15 +326,16 @@ class pxlImageRemapper(QMainWindow):
 
     # -- -- --
 
+    saveButtonLayout = QHBoxLayout()
+
     self.saveVAE_button = HoverButtonWidget("Save VAE Encodings & Decodings")
     self.saveVAE_button.clicked.connect(self.saveVAEClicked)
-    insetButtonLayout.addWidget(self.saveVAE_button)
-
-    # -- -- --
+    saveButtonLayout.addWidget(self.saveVAE_button)
 
     self.saveDiffusion_button = HoverButtonWidget("Save Diffusion Model")
     self.saveDiffusion_button.clicked.connect(self.saveDiffusionClicked)
-    insetButtonLayout.addWidget(self.saveDiffusion_button)
+    saveButtonLayout.addWidget(self.saveDiffusion_button)
+    insetButtonLayout.addLayout(saveButtonLayout)
 
     # -- -- --
 
@@ -373,9 +400,9 @@ class pxlImageRemapper(QMainWindow):
 
     # -- -- --
 
-    self.statusText = QLabel(self)
+    self.statusText = StatusDisplay( self.app )
     layout.addWidget(self.statusText)
-    self.setStatusText("Init...")
+    self.statusText.setStatusText("Init...")
 
 
     central_widget.setLayout(layout)
@@ -389,6 +416,12 @@ class pxlImageRemapper(QMainWindow):
       self.app.processEvents()
     return self.hasBreak
   
+  def resetBreak(self):
+    self.hasBreak = False
+
+  def triggerBreak(self):
+    self.hasBreak = True
+
   def keyPressEvent(self, event):
     if event.key() == Qt.Key.Key_Escape:
       self.hasBreak = True
@@ -399,53 +432,45 @@ class pxlImageRemapper(QMainWindow):
 
   # -- -- --
 
-  def UpdateDisplays(self):
+  def UpdateDisplays(self, imgPaths=[], selectedLabel=None):
     print("Updating Displays...")
 
-  # -- -- --
+    buttonOptions = {
+      "Info": {
+          "color":"info",
+          "callback":self.displayInfo
+        }
+    }
 
-  def initHelpers(self):
-      self.statusTimer.timeout.connect(self.clearStatusText)
-
-  def setNoTimerStatusText(self, text):
-    self.setStatusText(text, 0)
-
-  def setStatusText(self, text, clearDelay=5000):
-      if self.statusText:
-          self.statusText.setText(text)
-          baseLine = "font-size:20px;"
-          if "Error" in text:
-              self.statusText.setStyleSheet(baseLine+"background-color: #551515;font-weight: bold;")
-          elif "Warning" in text:
-              self.statusText.setStyleSheet(baseLine+"background-color: #454515;font-weight: bold;")
-          elif "Tip" in text:
-              self.statusText.setStyleSheet(baseLine+"background-color: #153555;font-weight: bold;")
-          else:
-              self.statusText.setStyleSheet(baseLine+"color: #cccccc;")
-      
-      if text != "" and clearDelay > 0:
-          self.statusText.setVisible(True)
-          self.statusTimer.timeout.connect(lambda: self.setStatusText(""))
-          self.statusTimer.start(clearDelay)
-      elif text != "" and clearDelay == 0 :
-          self.statusText.setVisible(True)
-          self.statusTimer.stop()
+    self.imageListWidget.clear()
+    for x in range(len(imgPaths)):
+      print("Adding Image : ", imgPaths[x])
+      newImgDisp = None
+      if type(imgPaths[x]) == str and os.path.exists(imgPaths[x]):
+        newImgDisp = ImageDataDisplayWidget( imgPaths[x], selectedLabel )
       else:
-          self.statusText.setVisible(False)
-          self.statusTimer.stop()
+        newImgDisp = ImageDataDisplayWidget( imgPaths[x], selectedLabel )
 
-      if self.app is not None and self.app.instance():
-          self.app.processEvents()
+      newImgDisp.subscribeToDelete( self.displayDelete )
 
-  def clearStatusText(self):
-      self.setStatusText("")
-
-  def setDelayStatusText(self, text, delay=5000, duration=8000):
-      self.statusTimer.timeout.connect(lambda: self.setStatusText(text, duration))
-      self.statusTimer.start(delay)
+      newItem = QListWidgetItem()
+      newItem.setSizeHint(newImgDisp.sizeHint())
+      self.imageListWidget.addItem(newItem)
+      self.imageListWidget.setItemWidget(newItem, newImgDisp)
   
-  def stopDelayStatusText(self):
-      self.statusTimer.stop()
+  def displayInfo(self, curDisplay ):
+    curImgPath = curDisplay.imagePath
+    print("Displaying Info for : ", curImgPath)
+  
+  def displayDelete(self, curLabel ):
+    self.statusText.setStatusText("Delisting : ", curLabel.imagePath)
+    for i in range(self.imageListWidget.count()):
+      item = self.imageListWidget.item(i)
+      widget = self.imageListWidget.itemWidget(item)
+      if widget == curLabel:
+        self.imageListWidget.takeItem(i)
+        break
+
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
@@ -479,14 +504,19 @@ class pxlImageRemapper(QMainWindow):
 
 
   def updateGenerationOptions(self, label, value):
-    if label == "Gen Batch Size":
-      self.batchSize = value
+    if label == "Gen Epochs":
+      self.generationEpochs = value
+    elif label == "Gen Batch Size":
+      self.generationBatchSize = value
 
   def trainVAE(self):
     if self.vae is None:
       self.loadVAE()
-    print("Training VAE...")
-    self.runTrainGenerationStack()
+    self.statusText.setStatusText("Training VAE...")
+    if self.statusText is not None:
+      self.statusText.setCallbackMode( self.trainingMode["VAE"] )
+    self.runTrainVAE()
+    #self.runTrainGenerationStack()
 
   def saveVAE(self, isSession=False):
     if self.vae is None:
@@ -495,6 +525,15 @@ class pxlImageRemapper(QMainWindow):
       self.vae.saveSession()
     else:
       self.vae.save()
+
+  def trainDiffusion(self):
+    if self.diffusionModel is None:
+      self.loadModel()
+    self.statusText.setStatusText("Training Diffusion Model...")
+    if self.statusText is not None:
+      self.statusText.setCallbackMode( self.trainingMode["Diffusion"] )
+    self.runTrainDiffusion()
+    #self.runTrainGenerationStack()
 
   def saveDiffusion(self, isSession=False):
     if self.diffusionModel is None:
@@ -509,17 +548,17 @@ class pxlImageRemapper(QMainWindow):
     self.saveVAE( True )
     self.saveDiffusion()
     self.saveDiffusion( True )
-    self.setStatusText("-- All Models Saved --")
+    self.statusText.setStatusText("-- All Models Saved --")
 
   def saveVAEClicked(self):
     self.saveVAE()
     self.saveVAE( True )
-    self.setStatusText("-- VAE Encodings & Decodings Saved --")
+    self.statusText.setStatusText("-- VAE Encodings & Decodings Saved --")
 
   def saveDiffusionClicked(self):
     self.saveDiffusion()
     self.saveDiffusion( True )
-    self.setStatusText("-- Diffusion Model Saved --")
+    self.statusText.setStatusText("-- Diffusion Model Saved --")
 
   def saveSession(self):
     if self.vae is None:
@@ -530,7 +569,7 @@ class pxlImageRemapper(QMainWindow):
     if self.diffusionModel is None:
       self.loadModel()
     self.diffusionModel.save( os.path.join(self.outputSessionFolder, "diffusion_model"+str(self.sessionId)+"." + self.outputFileType) )
-    self.setStatusText("-- VAE & Diffusion Session Saved --")
+    self.statusText.setStatusText("-- VAE & Diffusion Session Saved --")
 
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -557,24 +596,25 @@ class pxlImageRemapper(QMainWindow):
     #def __init__(self, parent, sessionId, labels, epochs, batch_size, outputEncoderPath, outputDecoderPath, outputSessionPath, outputType, latent_dim=2, encoderDecoderSizes=[], reluLayers=[], **kwargs):
    
     self.vae = VAE( 
-                    parent=self,
-                    sessionId=self.sessionId, 
-                    labels=self.labelLinks,
-                    epochs=self.epochs,
-                    batch_size=self.batchSize,
-                    outputFolder=self.outputFolder,
-                    outputEncoderPath=self.outputEncoder,
-                    outputDecoderPath=self.outputDecoder,
-                    outputSessionPath=self.outputSessionFolder,
-                    outputType=self.outputFileType,
-                    latent_dim=self.latentDim,
-                    encoderDecoderSizes=self.encoderDecoderSizes,
-                    reluLayers=self.reluLayers
+                    parent = self,
+                    sessionId = self.sessionId, 
+                    statusBar = self.statusText,
+                    labels = self.labelLinks,
+                    epochs = self.epochs,
+                    batch_size = self.batchSize,
+                    outputFolder = self.outputFolder,
+                    outputEncoderPath = self.outputEncoder,
+                    outputDecoderPath = self.outputDecoder,
+                    outputSessionPath = self.outputSessionFolder,
+                    outputType = self.outputFileType,
+                    latent_dim = self.latentDim,
+                    encoderDecoderSizes = self.encoderDecoderSizes,
+                    reluLayers = self.reluLayers
                   )
 
     self.vae.load()
 
-    self.setStatusText("-- VAE Encodings & Decodings Loaded --")
+    self.statusText.setStatusText("-- VAE Encodings & Decodings Loaded --")
 
   def loadModel(self):
     if os.path.exists(self.outputDiffusion):
@@ -583,33 +623,53 @@ class pxlImageRemapper(QMainWindow):
       self.diffusionModel = self.buildDiffusionModel(self.latentDim)
       self.diffusionModel.save( self.outputDiffusion )
 
+    self.needsFit = True
+
     # Train Compiling of the Model and fitting the data occurs only when the training occurs
     #   This is to allow easier instant use of the existing model
 
     self.diffusionModel.summary()
-    self.setStatusText("-- Diffusion Model Loaded --")
+    self.statusText.setStatusText("-- Diffusion Model Loaded --")
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
   def findStartingCount(self, folder, basename=None, ext=None):
-    curImageCount = os.listdir(folder)
+    if not os.path.exists(folder):
+      os.makedirs(folder)
+    curFolderList = os.listdir(folder)
+    if len(curFolderList) == 0:
+      return 0
+    
+    outCount = 0
+    filteredList = []
     if ext is not None:
-      curImageCount = len( list(filter(lambda x: x.endswith(ext), curImageCount)) )
+      filteredList =  list(filter(lambda x: x.endswith(ext), curFolderList)) 
     if basename is not None:
-      curImageCount += len( list(filter(lambda x: x.startswith(basename), curImageCount)) )
+      filteredList +=  list(filter(lambda x: x.startswith(basename), curFolderList)) 
     if ext is not None and basename is not None:
-      curImageCount = sorted( list(set( lambda x: int(x.split("_")[-1].split(".")[0]), curImageCount )) )
-      curImageCount = curImageCount[-1]+1
+      filteredList = sorted( list(set(map( lambda x: int(x.split("_")[-1].split(".")[0]), filteredList ))) )
+      outCount = filteredList[-1]+1
     else:
-      curImageCount = int(curImageCount.split("_")[-1].split(".")[0])+1
-    return curImageCount
+      outCount = len(filteredList)
+      
+    return outCount
 
   def generateImages(self):
     selected_label = self.labelCombo.currentText()
 
-    # Generate images using the selected label and slider values
-    new_images = self.GenerateSpecificCharacter(selected_label, self.vae, self.diffusion_model, output_folder=self.outputSessionFolder)
+    if self.diffusionModel is None:
+      self.loadModel()
 
+    # Generate images using the selected label and slider values
+    new_images, qimageData = self.GenerateSpecificCharacter(selected_label, self.diffusionModel, self.outputSessionFolder)
+
+    if new_images is None:
+      print("Error: No images generated")
+      return;
+  
+    self.UpdateDisplays(qimageData, selected_label)
+
+    """
     # Display the generated images in the list
     self.imageListWidget.clear()
     curImageCount = self.findStartingCount(self.outputSessionFolder, ext=".png")
@@ -620,10 +680,19 @@ class pxlImageRemapper(QMainWindow):
       padCount = str(curImageCount).zfill(3)
       img_path = os.path.join(self.outputSessionFolder, f"{selected_label}_{padCount}.png")
       img.save(img_path)
-      self.imageListWidget.addItem(img_path)
 
+      img = img.convert("RGBA")  # Ensure image is in RGBA format
+      data = img.tobytes("raw", "RGBA")
+      qimage = QImage(data, img.width, img.height, QImage.Format.Format_RGBA8888)
+      imgPixmap = QPixmap.fromImage(qimage)
+      imgLabel = QLabel( f"{selected_label} : {curImageCount}" )
+      imgLabel.setPixmap(imgPixmap)
+      imgLabel.setFixedHeight(128)
+      imgLabel.setFixedWidth(128)
+      self.imageListWidget.addItem(imgLabel)
+      
       curImageCount += 1
-
+    """
 
   def fileExists(self, filePath):
     return os.path.exists(filePath)
@@ -644,7 +713,14 @@ class pxlImageRemapper(QMainWindow):
 
     return z_combined
 
-  def GenerateRemapper(self,  outputSize, diffusion_model, output_folder="", runDiffusionFit=False ):
+  def GenerateRemapper(self, diffusion_model, imageList, outputSize, predictionCount=4, output_folder="", runDiffusionFit=False ):
+    
+    curImageList = imageList
+    #curImageList = imageList if imageList is not None else self.images[outputSize]
+    
+    if self.vae is None:
+      self.loadVAE()
+
     # Load the VAE encoder and decoder
     encoder,decoder = self.vae.getEncoder(outputSize)
     if type(diffusion_model) == str:
@@ -652,11 +728,20 @@ class pxlImageRemapper(QMainWindow):
 
     # Generate new latent vectors
     z_combined = self.calcZValues(encoder)
+
+    # Limit predictions
+    if predictionCount > z_combined.shape[0]:
+      predictionCount = z_combined.shape[0] - 1
+    z_combined = z_combined[:predictionCount]
+
+
     # Compile and train the diffusion model
     if runDiffusionFit:
+      print("-- fitting diffusion model --")
       diffusion_model.compile(optimizer="adam", loss="mse")
       diffusion_model.fit(z_combined, z_combined, epochs=self.epochs, batch_size=self.batchSize)
 
+    self.statusText.setStatusText("Generating latent vectors...")
     new_latent_vectors = diffusion_model.predict(z_combined)
 
     outputSize = self.vae.checkOutputSize(outputSize)
@@ -671,31 +756,60 @@ class pxlImageRemapper(QMainWindow):
 
     # Decode the new latent vectors to generate new images
     print("Generating new images...")
+    self.statusText.setStatusText("Generating new images...")
     new_images = decoder.predict(new_latent_vectors)
+
+    # Verify the generated images using the one-hot encoded channels
+    verified_images = []
+    curLabel = self.labelCombo.currentText().split("_")[0]
+    for img in new_images:
+      # Decode the one-hot encoded channels to get the predicted label
+      predicted_label = np.argmax(img, axis=-1)
+      
+      """curImg = img[:, :, -1]
+      width, height = curImg.shape
+      curImg = (curImg * 255).astype(np.uint8)
+      curImg = QImage(curImg, width, height, 3*width, QImage.Format.Format_RGB888)
+      curPixmap = QPixmap.fromImage(curImg)"""
+
+
+      """newImgDisplay = QLabel()
+      newImgDisplay.setPixmap(curPixmap)"""
+
+      #self.imageListWidget.addItem(newImgDisplay)
+
+      # Check if the predicted label matches the selected label
+      #if predicted_label == self.labelLinks[curLabel]:
+      #  verified_images.append(img)
+    
+    print(f"Verified {len(verified_images)} images for label: {curLabel}")
+
+
+
     print("New images generated - ", len(new_images))
-    # Display the generated images
-    for x in range(10):  # Display 10 generated images
-        dispNum = len(new_images)-1-x
-        plt.imshow(new_images[dispNum], cmap='gray')
-        plt.show()
+    self.statusText.setStatusText("-- "+str(len(new_images))+" New Images Generated --")
 
     # Save the generated images
     if output_folder != "":
       for x, img in enumerate(new_images):
-        img = (img * 255).astype(np.uint8)
+        print(img.shape)
+        curImg = img[:, :, -1]
+        curImg = (curImg * 255).astype(np.uint8)
         if not os.path.exists(output_folder):
           os.makedirs(output_folder)
-        img = Image.fromarray(img)
+        curImg = Image.fromarray(curImg)
         outputPath = os.path.join(output_folder, f'pxlImageRemapper_{x}.png')
-        img.save(outputPath)
+        curImg.save(outputPath)
 
     # Calculate reconstruction loss
     mse = MeanSquaredError()
-    imagesCount = self.images[outputSize].shape[0]
+    #imagesCount = self.images[outputSize].shape[0]
+    #displayImages = new_images[:imagesCount]
+    imagesCount = curImageList.shape[0]
     displayImages = new_images[:imagesCount]
-    original_size = tf.shape(self.images[outputSize])[1:3]
+    original_size = tf.shape(curImageList)[1:3]
     displayImages = tf.image.resize(displayImages, original_size)
-    reconstruction_loss = mse(self.images[outputSize], displayImages).numpy()
+    reconstruction_loss = mse(curImageList, displayImages).numpy()
     print(f'Reconstruction Loss: {reconstruction_loss}')
 
     return new_images
@@ -703,47 +817,52 @@ class pxlImageRemapper(QMainWindow):
   # -- -- -- -- -- -- -- --
 
   def GenerateSpecificCharacter(self, character, diffusion_model, output_folder=""):
-    # Filter images and labels for the requested character
-    filtered_images = {}
-    for size in self.images.keys():
-      filtered_images[size] = [img for img, label in zip(self.images[size], self.labelLinks) if label == character]
-      if len(filtered_images[size]) == 0:
-        print(f"No images found for character: {character}")
-        return
 
+    character = character.split("_")[0]
+
+    # Filter images and labels for the requested character
+    filteredImages = {}
+    sizes = list(self.images.keys())
+    imgSize = sizes[0]
+
+    filteredImages[imgSize] = list(filter(lambda x: x[1] == character, zip(self.images[imgSize], self.labels)))
+    if len(filteredImages[imgSize]) == 0:
+      print(f"No images found for character: {character}")
+      return
+    print(f"Found {len(filteredImages[imgSize])} images for character: {character}")
     # Convert lists to numpy arrays
-    for size in filtered_images.keys():
-      filtered_images[size] = np.array(filtered_images[size])
-      filtered_images[size] = filtered_images[size].reshape(-1, size, size, 1)
+    filteredImages[imgSize] = np.array([img for img, lbl in filteredImages[imgSize]])
+    filteredImages[imgSize] = filteredImages[imgSize].reshape(-1, imgSize, imgSize, 1)
 
     # Generate new images using the filtered images
-    new_images = self.GenerateRemapper(self.inputTrainSize, diffusion_model, output_folder, runDiffusionFit=False)
+    genCount = self.generationBatchSize
+    #generatedImages = self.GenerateRemapper( diffusion_model, filteredImages, self.inputTrainSize, genCount, output_folder, runDiffusionFit=False )
+    generatedImages = self.GenerateRemapper( diffusion_model, filteredImages[imgSize], imgSize, genCount, output_folder, runDiffusionFit=False )
 
-    # Display the generated images
-    for x in range(10):  # Display 10 generated images
-      if self.checkBreak():
-        print("Exiting Generation...")
-        break
-      dispNum = len(new_images) - 1 - x
-      plt.imshow(new_images[dispNum], cmap="gray")
-      plt.show()
-
+    if self.checkBreak():
+      print("Exiting Generation...")
+      return;
+  
     # Save the generated images
+    outputImages = []
     if output_folder != "":
       startingCount = self.findStartingCount(output_folder, character, ".png")
-      for x, img in enumerate(new_images):
-        if self.checkBreak():
-          print("Exiting Generation...")
-          break
-        img = (img * 255).astype(np.uint8)
+      for x, img in enumerate(generatedImages):
+        # Gather label data
+        # Aggregate data from all layers into a final gray channel
+        curImg = np.max( img, axis=-1 )
+
+        curImg = (curImg * 255).astype(np.uint8)
         if not os.path.exists(output_folder):
           os.makedirs(output_folder)
-        img = Image.fromarray(img)
+        curImg = Image.fromarray(curImg)
         curCount = str(startingCount+x).zfill(3)
         outputPath = os.path.join(output_folder, f"pxlImageRemapper_{character}_{curCount}.png")
-        img.save(outputPath)
-
-    return new_images
+        curImg.save(outputPath)
+        toqImg = QImage(curImg.tobytes("raw", "L"), curImg.width, curImg.height, QImage.Format.Format_Grayscale8)
+        outputImages.append(toqImg)
+        print(f"Saved image: {outputPath}")
+    return generatedImages, outputImages
 
   def buildDiffusionModel(self, latent_dim):
       maxSize = self.vae.checkOutputSize(self.inputTrainSize)
@@ -760,7 +879,7 @@ class pxlImageRemapper(QMainWindow):
   
   # -- -- -- -- -- -- -- --
 
-  def generateImages(self, res=128):
+  def runGenerateImages(self, res=128):
     print(f"Entering Prediction Mode...")
 
     #if not fileExists(output_encoder_128) or not fileExists(output_decoder_128) or not fileExists(self.outputDiffusion):
@@ -769,31 +888,90 @@ class pxlImageRemapper(QMainWindow):
       print("   Exiting ...")
       return;
 
-    # Load the diffusion model with custom objects
-    self.vae.hasLoaded()
+    #self.vae.hasLoaded()
 
-    diffusion_model = models.load_model( self.outputDiffusion, custom_objects={"mse": MeanSquaredError()})
-    #GenerateRemapper( self.inputTrainSize, diffusion_model, output_folder="" )
+    if self.diffusionModel is None:
+      self.loadModel()
     
-    self.GenerateSpecificCharacter("A_cap", diffusion_model, output_folder="")
+    #genCount = self.generationBatchSize
+    #GenerateRemapper( diffusion_model, self.images[self.inputTrainSize], self.inputTrainSize, genCount, output_folder="" )
+    
+    curGenLabel = self.labelCombo.currentText()
+    print(f"Generating Images for : {curGenLabel}")
+    self.GenerateSpecificCharacter( curGenLabel, self.diffusionModel, self.outputSessionFolder)
 
     self.UpdateDisplays()
 
 
   # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
+  def runTrainVAE(self, step=0):
+    statusText = "Building Encoder & Decoder..."
+    if step > 0:
+      statusText = f"{step} - {statusText}"
+    self.statusText.setStatusText( statusText )
+
+    if self.fileExists( self.outputEncoder ) and self.fileExists( self.outputDecoder ):
+      self.statusText.setStatusText( statusText + "Loading existing models..." )
+      self.vae.load()
+    else:  # Instantiate the shared encoder, decoder, and VAE
+      self.statusText.setStatusText( statusText + "Building new models..." )
+      self.vae.prepShapes()
+
+    self.vae.train( self.images, self.labelLinks, self.epochs, self.batchSize )
+    if self.autoSave:
+      self.vae.save()
+    self.vae.saveSession()
+
+  def runTrainDiffusion(self, step=0):
+    statusText = "Building Diffusion model..."
+    if step > 0:
+      statusText = f"{step} - {statusText}"
+    self.statusText.setStatusText( statusText )
+
+    if self.vae is None:
+      self.loadVAE()
+
+    # Define the diffusion model
+    if self.diffusionModel is None:
+      self.loadModel()
+
+    outputSize = self.vae.checkOutputSize(self.inputTrainSize)
+    encoder,decoder = self.vae.getEncoder(outputSize)
+
+    # Combine latent vectors from different scales
+    z_combined = self.calcZValues( encoder )
+
+    # Compile and train the diffusion model
+    if self.needsFit:
+      self.needsFit = False
+      self.statusText.setStatusText("Fitting Diffusion Model...")
+      self.diffusionModel.compile(optimizer="adam", loss="mse")
+    self.diffusionModel.fit(z_combined, z_combined, epochs=self.epochs, batch_size=self.batchSize)
+
+    # Save the diffusion model
+    if self.autoSave:
+      if not os.path.exists(self.outputDiffusion):
+        os.makedirs(self.outputDiffusion)
+      self.diffusionModel.save( self.outputDiffusion )
+    if not os.path.exists(self.outputSessionFolder):
+      os.makedirs(self.outputSessionFolder)
+    self.diffusionModel.save( self.outputSessionFolder + "/diffusion_model." + self.outputFileType )
+
+
+
   def runTrainGenerationStack(self):
 
     step=0
 
     step+=1
-    self.setStatusText(f"{step} - Building Encoder & Decoder...")
+    self.statusText.setStatusText(f"{step} - Building Encoder & Decoder...")
 
     if self.fileExists( self.outputEncoder ) and self.fileExists( self.outputDecoder ):
-      self.setStatusText("Loading existing models...")
+      self.statusText.setStatusText("Loading existing models...")
       self.vae.load()
     else:  # Instantiate the shared encoder, decoder, and VAE
-      self.setStatusText("Building new models...")
+      self.statusText.setStatusText("Building new models...")
       self.vae.prepShapes()
 
     self.vae.train( self.images, self.labelLinks, self.epochs, self.batchSize )
@@ -801,13 +979,13 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
     if self.checkBreak():
-      self.setStatusText("Exiting Training...")
+      self.statusText.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
     step+=1
-    self.setStatusText(f"{step} - Building Diffusion model...")
+    self.statusText.setStatusText(f"{step} - Building Diffusion model...")
 
     # Define the diffusion model
 
@@ -817,7 +995,7 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      self.setStatusText("Exiting Training...")
+      self.statusText.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -841,13 +1019,13 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      self.setStatusText("Exiting Training...")
+      self.statusText.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
     step+=1
-    self.setStatusText(f"{step} - Saving VAE Encoder/Decoder & Model...")
+    self.statusText.setStatusText(f"{step} - Saving VAE Encoder/Decoder & Model...")
 
     # Save the VAE encoder and decoder
     self.vae.save()
@@ -861,7 +1039,7 @@ class pxlImageRemapper(QMainWindow):
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      self.setStatusText("Exiting Training...")
+      self.statusText.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -870,14 +1048,16 @@ class pxlImageRemapper(QMainWindow):
     print(f"{step} - Generating new images...")
 
     # Load the VAE encoder and decoder
-    #GenerateRemapper( self.inputTrainSize, diffusion_model, output_folder )
+    #genCount = self.generationBatchSize
+    #GenerateRemapper( diffusion_model, self.images[self.inputTrainSize], self.inputTrainSize, genCount, output_folder )
 
-    self.GenerateSpecificCharacter("A_cap", diffusion_model, self.outputSessionFolder)
+    curLabel = self.labelCombo.currentText()
+    self.GenerateSpecificCharacter(curLabel, diffusion_model, self.outputSessionFolder)
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     
     if self.checkBreak():
-      self.setStatusText("Exiting Training...")
+      self.statusText.setStatusText("Exiting Training...")
       return
 
     # -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --

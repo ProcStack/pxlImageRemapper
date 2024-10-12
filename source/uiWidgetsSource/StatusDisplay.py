@@ -39,11 +39,17 @@ class StatusDisplay(QWidget):
         QProgressBar::chunk {background-color: #5599cc;}
       """
 
-    self.cancelCallbacks = []
+    self.callbackMode = None
+    self.cancelCallbacks = {}
 
     self.initUI()
+    self.initHelpers()
   
   # -- -- --
+
+  def initHelpers(self):
+    self.statusTimer.setSingleShot(True)
+    self.statusTimer.timeout.connect(lambda: self.setStatusText(""))
 
   def initUI(self):
     layout = QVBoxLayout()
@@ -61,7 +67,7 @@ class StatusDisplay(QWidget):
     self.statusBar.setStyleSheet(self.styleStatusBar)
     progressBarLayout.addWidget(self.statusBar)
 
-    self.cancelButton = HoverButtonWidget( "X", self.cancelFont )
+    self.cancelButton = HoverButtonWidget( "X", self.cancelFont, "WARNING" )
     self.cancelButton.setFixedWidth( self.progressHeight )
     self.cancelButton.setFixedHeight(0)
     self.cancelButton.clicked.connect(self.cancel)
@@ -150,13 +156,28 @@ class StatusDisplay(QWidget):
 
   # -- -- --
 
-  def subscribeToCancel(self, callback):
-    self.cancelCallbacks.append(callback)
+  def setCallbackMode(self, title="Default"):
+    if title == "Default":
+      self.callbackMode = None
+    else:
+      self.callbackMode = title
+    if title not in self.cancelCallbacks:
+      self.cancelCallbacks[title] = []
+
+
+  def subscribeToCancel(self, callback, title="Default"):
+    if title not in self.cancelCallbacks:
+      self.cancelCallbacks[title] = []
+    self.cancelCallbacks[title].append(callback)
   def cancel(self):
     if not self.isDone:
-      for callback in self.cancelCallbacks:
-        callback()
+      for title in self.cancelCallbacks:
+        for callback in self.cancelCallbacks[title]:
+          callback()
     self.hideStatusBar()
+  def removeCallback(self, title="Default"):
+    if title in self.cancelCallbacks:
+      del self.cancelCallbacks[title]
 
 
 
