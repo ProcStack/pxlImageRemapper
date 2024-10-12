@@ -1,3 +1,10 @@
+#
+#    File or QImage display with text label
+#      Supports custom buttons with callbacks
+#    By Kevin Edzenga; 2024
+#
+#  -- -- -- -- -- -- --
+#
 
 import os
 from PyQt6.QtCore import Qt
@@ -99,6 +106,14 @@ class ImageDataDisplayWidget(QWidget):
     for x in range(len(self.callbackList)):
       self.callbackList[x](self)
     self.deleteLater()
+
+
+
+
+# -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+# -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+# -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+
 
 
 
