@@ -801,7 +801,7 @@ class pxlImageRemapper(QMainWindow):
     if runDiffusionFit:
       print("-- fitting diffusion model --")
       diffusion_model.compile(optimizer="adam", loss="mse")
-      diffusion_model.fit(z_combined, z_combined, epochs=self.epochs, batch_size=self.batchSize)
+    diffusion_model.fit(z_combined, z_combined, epochs=self.epochs, batch_size=self.batchSize)
 
     self.statusText.setStatusText("Generating latent vectors...")
     new_latent_vectors = diffusion_model.predict(z_combined)
@@ -871,6 +871,12 @@ class pxlImageRemapper(QMainWindow):
     displayImages = new_images[:imagesCount]
     original_size = tf.shape(curImageList)[1:3]
     displayImages = tf.image.resize(displayImages, original_size)
+    
+    # TODO : This is occuring after training
+    #          Need to check the reshaping after generating images
+    if curImageList.shape != displayImages.shape:
+      return new_images
+
     reconstruction_loss = mse(curImageList, displayImages).numpy()
     print(f'Reconstruction Loss: {reconstruction_loss}')
 
@@ -979,6 +985,8 @@ class pxlImageRemapper(QMainWindow):
       self.statusText.setStatusText( statusText + "Building new models..." )
       self.vae.prepShapes()
 
+    self.hasBreak = False
+    self.vae.prepTraining()
     self.vae.train( self.images, self.labelLinks, self.epochs, self.batchSize )
     if self.autoSave:
       self.vae.save()

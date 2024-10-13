@@ -37,6 +37,7 @@ class VAE(tf.keras.Model):
     self.labelOneHot = None
     self.encoders = {}
     self.decoders = {}
+    self.trainableVariables = {}
     self.encoderDecoderSizes = encoderDecoderSizes
     self.reluLayers = reluLayers
     self.outputFolder = outputFolder
@@ -166,9 +167,11 @@ class VAE(tf.keras.Model):
       self.statusBar.setNoTimerStatusText("Prepping Encoder & Decoders : "+ str(size))
       
       oneHotSize = len(self.labelOneHot[0])
-      print("One Hot Size : ", oneHotSize)
+      #print("One Hot Size : ", oneHotSize)
       self.encoders[size] = self.build_encoder(self.latent_dim, (size, size, 1))
       self.decoders[size] = self.build_decoder(self.latent_dim, oneHotSize)
+      self.trainableVariables[size] = self.encoders[size].trainable_variables + self.decoders[size].trainable_variables
+      
       self.statusBar.setNoTimerStatusText("Current Size : "+ str(size))
 
 
@@ -296,8 +299,10 @@ class VAE(tf.keras.Model):
       
       loss = self.vaeLoss( images, reconstructed_labels, z_mean, z_log_var, labels )
 
-    gradients = tape.gradient(loss, self.trainable_variables)
-    self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+    trainableVariables = encoder.trainable_variables + decoder.trainable_variables
+    gradients = tape.gradient(loss, trainableVariables)
+
+    self.optimizer.apply_gradients(zip(gradients, trainableVariables))
     return loss
 
   def checkOutputSize(self, size):
@@ -342,13 +347,14 @@ class VAE(tf.keras.Model):
       encoder, decoder = self.getEncoder(images[0])
       if encoder is None:
         self.statusBar.setStatusText("Error: No encoder found")
-        return
+        return;
 
       for epoch in range(epochs):
         epochText = imageKeyText+" Epoch " + str(epoch + 1) + " / " + str(epochs)
         for i in range(num_batches):
           runner += 1
           if self.checkEscape() :
+            print("Exiting Training...")
             isExit = True
             break
           batch_images = images[i * batch_size:(i + 1) * batch_size]
@@ -359,7 +365,7 @@ class VAE(tf.keras.Model):
           loss = self.trainStep(batch_images, batch_labels_one_hot, encoder, decoder)
           curLoss = loss.numpy()
           if self.statusBar:
-            dispText = " " + str(runner) + " / " + str(totalRunCount) + "; " + epochText
+            dispText = "Training " + str(runner) + " / " + str(totalRunCount) + "; " + epochText
             dispText = dispText + "; Batch " + str(i) + " of " + str(num_batches) + "; Loss : " + str(curLoss)
             print(dispText)
             percent = int( (runner / totalRunCount) * 100 )
@@ -376,6 +382,8 @@ class VAE(tf.keras.Model):
       self.statusBar.setStatusText("Training Complete!")
     self.hasCancelTraining = False
 
+  def prepTraining(self):
+    self.hasCancelTraining = False
   def cancelTraining(self):
     self.hasCancelTraining = True
   def checkEscape(self):

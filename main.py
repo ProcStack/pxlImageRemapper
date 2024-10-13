@@ -53,7 +53,7 @@ options["continueTrainingIfExist"]=True
 
 options["encoder_decoder_sizes"]=[ 64 ]
 options["relu_layers"]=[ 32, 64 ]
-options["diffusion_layers"]=[ 32, 64 ]
+options["diffusion_layers"]=[ 64 ]
 
 options["latent_dim"] = 10
 options["epochs"] = 10
