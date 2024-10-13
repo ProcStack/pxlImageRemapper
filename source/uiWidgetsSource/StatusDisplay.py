@@ -77,7 +77,7 @@ class StatusDisplay(QWidget):
     self.statusBar.setStyleSheet(self.styleStatusBar)
     progressBarLayout.addWidget(self.statusBar)
 
-    self.cancelButton = HoverButtonWidget( "X", self.cancelFont, "WARNING" )
+    self.cancelButton = HoverButtonWidget( "X", self.cancelFont, "RED" )
     self.cancelButton.setFixedWidth( self.progressHeight )
     self.cancelButton.setFixedHeight(0)
     self.cancelButton.clicked.connect(self.cancel)
@@ -104,9 +104,13 @@ class StatusDisplay(QWidget):
         self.hideStatusBar()
       else:
         self.cancelButton.setText("O")
-        self.cancelButton.setTheme("ACCEPT")
+        self.cancelButton.setTheme("GREEN")
 
   def showStatusBar(self):
+    if self.isDone:
+      self.statusPercent = 0.0
+      self.cancelButton.setText("X")
+      self.cancelButton.setTheme("RED")
     self.isDone = False
     self.statusBar.setVisible(True)
     self.statusBar.setFixedHeight( self.progressHeight )
@@ -114,12 +118,13 @@ class StatusDisplay(QWidget):
     self.cancelButton.setFixedHeight( self.cancelHeight )
   def hideStatusBar(self):
     self.isDone = True
+    self.statusPercent = 0.0
     self.statusBar.setVisible(False)
     self.statusBar.setFixedHeight(0)
     self.cancelButton.setVisible(False)
     self.cancelButton.setFixedHeight(0)
     self.cancelButton.setText("X")
-    self.cancelButton.setTheme("WARNING")
+    self.cancelButton.setTheme("RED")
 
   # -- -- --
 

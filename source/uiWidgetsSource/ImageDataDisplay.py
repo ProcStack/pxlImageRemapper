@@ -91,7 +91,7 @@ class ImageDataDisplayWidget(QWidget):
       buttonLayout.addWidget( button) 
 
     # Default Buttons
-    self.deleteButton = HoverButtonWidget( "Del", 14, "WARNING" )
+    self.deleteButton = HoverButtonWidget( "Del", 14, "RED" )
     self.deleteButton.setFixedWidth( 40 )
     self.deleteButton.setFixedHeight( 20 )
     self.deleteButton.clicked.connect(lambda: self.delete())
@@ -147,7 +147,7 @@ if __name__ == "__main__":
   
   buttonOptions = {
     "Info": {
-        "color":"info",
+        "color":"yellow",
         "callback":infoButtonClicked
       }
   }

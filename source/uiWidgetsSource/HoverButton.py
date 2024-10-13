@@ -10,67 +10,35 @@
 #       Clicking the buttons will print "Boop!" to the console
 #       Clicking the Random button with recolor the button with a random theme
 #
-#   Currently there are three color themes:
+#   Currently available color themes:
 #    DEFAULT - Blue Theme
 #    ACCEPT - Green Theme
 #    INFO - Yellow Theme
 #    WARNING - Red Theme
 #    
-#  You can add more by adding to the COLORS dictionary on HoverButtonWidget 
+#  You can add more by adding to the THEMES dictionary in pxlColors.py
 #
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QPushButton
 
+from .pxlColors import pxlColors
+
 
 class HoverButtonWidget(QPushButton):
-  COLORS = {
-    "DEFAULT": {
-      "text": "#ffffff",
-      "textHover": "#eff6ff",
-      "bg": "#353535",
-      "bgHover": "#404550",
-      "brd": "#808080",
-      "brdHover": "#5599cc"
-    },
-    "ACCEPT": {
-      "text": "#ffffff",
-      "textHover": "#eff6ff",
-      "bg": "#405040",
-      "bgHover": "#557055",
-      "brd": "#808080",
-      "brdHover": "#70cc70"
-    },
-    "INFO": {
-      "text": "#ffffff",
-      "textHover": "#eff6ff",
-      "bg": "#505040",
-      "bgHover": "#707045",
-      "brd": "#808080",
-      "brdHover": "#cccc55"
-    },
-    "WARNING": {
-      "text": "#ffffff",
-      "textHover": "#eff6ff",
-      "bg": "#553535",
-      "bgHover": "#704550",
-      "brd": "#808080",
-      "brdHover": "#cc5065"
-    }
-  }
 
-  def __init__(self, label, fontSize=20, color="DEFAULT"):
+  def __init__(self, label, fontSize=20, theme="DEFAULT"):
     super().__init__()
     self.isHover = False
     self.setText(label)
     self.setFixedHeight(45)
     #self.setFixedWidth(200)
 
-    color = color.upper() if color.upper() in HoverButtonWidget.COLORS else "DEFAULT"
-    self.theme = HoverButtonWidget.COLORS[color]
+    theme = theme.upper() if theme.upper() in pxlColors.THEMES else "DEFAULT"
+    self.theme = pxlColors.THEMES[theme]
     self.styleBase = f"font-size: {fontSize}px; font-weight: bold; border-radius: 5px;"
-    self.styleNoHover = "color: "+self.theme["text"]+"; background-color: "+self.theme["bg"]+";  border: 1px solid "+self.theme["brd"]+"; padding:1px 1px 1px 1px;" + self.styleBase
-    self.styleHover = "color: "+self.theme["textHover"]+"; background-color: "+self.theme["bgHover"]+"; border: 2px solid "+self.theme["brdHover"]+"; " + self.styleBase
+    self.styleNoHover = "color: "+self.theme["BASE"]["text"]+"; background-color: "+self.theme["BASE"]["bg"]+";  border: 1px solid "+self.theme["BASE"]["brd"]+"; padding:1px 1px 1px 1px;" + self.styleBase
+    self.styleHover = "color: "+self.theme["HOVER"]["text"]+"; background-color: "+self.theme["HOVER"]["bg"]+"; border: 2px solid "+self.theme["HOVER"]["brd"]+"; " + self.styleBase
 
     self.setStyleSheet(self.styleNoHover)
 
@@ -87,10 +55,10 @@ class HoverButtonWidget(QPushButton):
     super().leaveEvent(event)
 
   def setTheme(self, color):
-    color = color.upper() if color.upper() in HoverButtonWidget.COLORS else "DEFAULT"
-    self.theme = HoverButtonWidget.COLORS[color]
-    self.styleNoHover = "color: "+self.theme["text"]+"; background-color: "+self.theme["bg"]+";  border: 1px solid "+self.theme["brd"]+"; padding:1px 1px 1px 1px;" + self.styleBase
-    self.styleHover = "color: "+self.theme["textHover"]+"; background-color: "+self.theme["bgHover"]+"; border: 2px solid "+self.theme["brdHover"]+"; " + self.styleBase
+    color = color.upper() if color.upper() in pxlColors.THEMES else "DEFAULT"
+    self.theme = pxlColors.THEMES[color]
+    self.styleNoHover = "color: "+self.theme["BASE"]["text"]+"; background-color: "+self.theme["BASE"]["bg"]+";  border: 1px solid "+self.theme["BASE"]["brd"]+"; padding:1px 1px 1px 1px;" + self.styleBase
+    self.styleHover = "color: "+self.theme["HOVER"]["text"]+"; background-color: "+self.theme["HOVER"]["bg"]+"; border: 2px solid "+self.theme["HOVER"]["brd"]+"; " + self.styleBase
     if self.isHover:
       self.setStyleSheet(self.styleHover)
     else:
@@ -123,23 +91,27 @@ if __name__ == "__main__":
     widget.clicked.connect(onButtonClicked)
     mainLayout.addWidget(widget)
 
-    widget = HoverButtonWidget("Info Goo", color="info")
+    widget = HoverButtonWidget("Bloogity", 25, "green")
     widget.clicked.connect(onButtonClicked)
     mainLayout.addWidget(widget)
 
-    widget = HoverButtonWidget("Tester Face McGoo", 30, "WARNING")
+    widget = HoverButtonWidget("Info Goo", theme="yellow")
     widget.clicked.connect(onButtonClicked)
     mainLayout.addWidget(widget)
 
-    widget = HoverButtonWidget("Done", 25, "ACCEPT")
+    widget = HoverButtonWidget("Tester Face McGoo", 30, "red")
     widget.clicked.connect(onButtonClicked)
     mainLayout.addWidget(widget)
 
-    widget = HoverButtonWidget("Random", 25, "ACCEPT")
+    widget = HoverButtonWidget("Grank a tank a lank a loo", 18, "BLUE")
+    widget.clicked.connect(onButtonClicked)
+    mainLayout.addWidget(widget)
+
+    widget = HoverButtonWidget("Random", 25, "green")
 
     def setRandomTheme():
         import random
-        color = random.choice(list(HoverButtonWidget.COLORS.keys()))
+        color = random.choice(list(pxlColors.THEMES.keys()))
         print(f"Setting Theme to {color}")
         widget.setTheme(color)
 
