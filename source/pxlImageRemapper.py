@@ -984,7 +984,7 @@ class pxlImageRemapper(QMainWindow):
       self.vae.prepShapes()
 
     self.hasBreak = False
-    self.vae.prepTraining( self.images, self.labelOneHot, self.epochs, self.batchSize )
+    self.vae.prepTraining()# self.images, self.labelOneHot, self.epochs, self.batchSize )
     
     self.vae.train( self.images, self.labelLinks, self.epochs, self.batchSize )
 
