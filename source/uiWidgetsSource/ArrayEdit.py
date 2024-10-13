@@ -6,6 +6,15 @@
 #
 #  -- -- -- -- -- -- --
 #
+#   Standalone Unit Test -
+#     Display a window with an ArrayEditWidget
+#       The ArrayEditWidget will display a list of integers 1-10
+#     You can edit the list in the text field
+#       Click in the area below to stop editing the field
+#
+#   The ArrayEditWidget will only accept integers currently
+#     Maybe in the future any ascii, but only integers were needed for the widgets initial purpose
+#
 
 from PyQt6.QtWidgets import QTextEdit
 from PyQt6.QtGui import QTextCursor
@@ -108,10 +117,27 @@ class ArrayEditWidget(QTextEdit):
 
 # Unit test
 if __name__ == "__main__":
-  from PyQt6.QtWidgets import QApplication
+  from PyQt6.QtCore import Qt
+  from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
   import sys
 
   app = QApplication(sys.argv)
-  widget = ArrayEditWidget("test", [1,2,3,4,5,6,7,8,9,10])
+  widget = QWidget()
+  widget.setFixedWidth(400)
+  widget.setFixedHeight(200)
+  widget.setWindowTitle("ArrayEditWidget Test")
+  mainLayout = QVBoxLayout()
+  arrayEdit = ArrayEditWidget("test", [1,2,3,4,5,6,7,8,9,10])
+  mainLayout.addWidget(arrayEdit)
+
+  def defocus():
+    arrayEdit.clearFocus()
+  
+  nullButton = QLabel("Click to defocus")
+  nullButton.setAlignment(Qt.AlignmentFlag.AlignCenter)
+  nullButton.mousePressEvent = lambda event: defocus()
+  mainLayout.addWidget(nullButton)
+
+  widget.setLayout(mainLayout)
   widget.show()
   sys.exit(app.exec())
